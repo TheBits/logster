@@ -87,7 +87,7 @@ cmdline.add_option('--parser-options', action='store',
 cmdline.add_option('--gmetric-options', action='store',
                     help='Options to pass to gmetric such as "-d 180 -c /etc/ganglia/gmond.conf" (default). These are passed directly to gmetric.',
                     default='-d 180 -c /etc/ganglia/gmond.conf')
-cmdline.add_option('--graphite-host', action='store',
+cmdline.add_option('--graphite-host', action='append', default=[],
                     help='Hostname and port for Graphite collector, e.g. graphite.example.com:2003')
 cmdline.add_option('--graphite-protocol', action='store', default='tcp',
                     choices=('tcp', 'udp'),
@@ -134,7 +134,7 @@ else:
 if not options.output:
     cmdline.print_help()
     cmdline.error("Supply where the data should be sent with -o (or --output).")
-if 'graphite' in options.output and not options.graphite_host:
+if 'graphite' in options.output and not len(options.graphite_host):
     cmdline.print_help()
     cmdline.error("You must supply --graphite-host when using 'graphite' as an output type.")
 if 'cloudwatch' in options.output and not options.aws_key and not options.aws_secret_key:
@@ -223,11 +223,16 @@ def submit_ganglia(metrics, options):
 
 
 def submit_graphite(metrics, options):
-    if (re.match("^[\w\.\-]+\:\d+$", options.graphite_host) == None):
-        raise Exception("Invalid host:port found for Graphite: '%s'" % options.graphite_host)
+    for host in options.graphite_host:
+        _submit_graphite(metrics, options, host)
+
+
+def _submit_graphite(metrics, options, graphite_host):
+    if (re.match("^[\w\.\-]+\:\d+$", graphite_host) == None):
+        raise Exception("Invalid host:port found for Graphite: '%s'" % graphite_host)
 
     if (not options.dry_run):
-        host = options.graphite_host.split(':')
+        host = graphite_host.split(':')
 
         if options.graphite_protocol == 'udp':
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -250,7 +255,7 @@ def submit_graphite(metrics, options):
             if (not options.dry_run):
                 s.sendall(bytes("%s\n" % metric_string))
             else:
-                print("%s %s" % (options.graphite_host, metric_string))
+                print("%s %s" % (graphite_host, metric_string))
     finally:
         if (not options.dry_run):
             s.close()
